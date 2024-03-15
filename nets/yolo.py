@@ -2,6 +2,7 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import time
 
 from nets.darknet import darknet53
 
@@ -52,7 +53,13 @@ class YoloBody(nn.Module):
         #   计算yolo_head的输出通道数，对于voc数据集而言
         #   final_out_filter0 = final_out_filter1 = final_out_filter2 = 75
         #------------------------------------------------------------------------#
+
+      
         self.last_layer0            = make_last_layers([512, 1024], out_filters[-1], len(anchors_mask[0]) * (num_classes + 5))
+
+
+
+
 
         self.last_layer1_conv       = conv2d(512, 256, 1)
         self.last_layer1_upsample   = nn.Upsample(scale_factor=2, mode='nearest')
@@ -67,40 +74,99 @@ class YoloBody(nn.Module):
         #   获得三个有效特征层，他们的shape分别是：
         #   52,52,256；26,26,512；13,13,1024
         #---------------------------------------------------#
+        
+        print("这个是整个DarkNet53")
+
         x2, x1, x0 = self.backbone(x)
+        print("DarkNet53结束")
 
         #---------------------------------------------------#
         #   第一个特征层
         #   out0 = (batch_size,255,13,13)
         #---------------------------------------------------#
         # 13,13,1024 -> 13,13,512 -> 13,13,1024 -> 13,13,512 -> 13,13,1024 -> 13,13,512
+        print("第一个特征层")
+        print("layer0")
+        startl0 = time.time()
+
         out0_branch = self.last_layer0[:5](x0)
         out0        = self.last_layer0[5:](out0_branch)
+        
+        overl0  =time.time()
+        print("delay0",round(overl0-startl0,5))
+        print("data0",torch.numel(out0) * out0.element_size())
+        print()
+        print("第一个特征层结束")
 
+        # 上采样与连接
         # 13,13,512 -> 13,13,256 -> 26,26,256
+        print("第二个特征层预处理")
+        print("layer0")
+        startl0 = time.time()
         x1_in = self.last_layer1_conv(out0_branch)
         x1_in = self.last_layer1_upsample(x1_in)
 
         # 26,26,256 + 26,26,512 -> 26,26,768
         x1_in = torch.cat([x1_in, x1], 1)
+
+        overl0  =time.time()
+        print("delay0",round(overl0-startl0,5))
+        print("data0",torch.numel(x1_in) * x1_in.element_size())
+        print()
+        print("第二个特征层预处理结束")
+
         #---------------------------------------------------#
         #   第二个特征层
         #   out1 = (batch_size,255,26,26)
         #---------------------------------------------------#
         # 26,26,768 -> 26,26,256 -> 26,26,512 -> 26,26,256 -> 26,26,512 -> 26,26,256
+        print("第二个特征层")
+        print("layer1")
+        startl0 = time.time()
+        
         out1_branch = self.last_layer1[:5](x1_in)
         out1        = self.last_layer1[5:](out1_branch)
+        
+        overl0  =time.time()
+        print("delay1",round(overl0-startl0,5))
+        print("data1",torch.numel(out0) * out0.element_size())
+        print()
+        print("第二个特征层结束")
 
+
+        print("第三个特征层预处理")
+        print("layer0")
+        startl0 = time.time()
+
+        x1_in = self.last_layer1_conv(out0_branch)
+        x1_in = self.last_layer1_upsample(x1_in)
         # 26,26,256 -> 26,26,128 -> 52,52,128
         x2_in = self.last_layer2_conv(out1_branch)
         x2_in = self.last_layer2_upsample(x2_in)
 
         # 52,52,128 + 52,52,256 -> 52,52,384
         x2_in = torch.cat([x2_in, x2], 1)
+
+        overl0  =time.time()
+        print("delay0",round(overl0-startl0,5))
+        print("data0",torch.numel(x1_in) * x1_in.element_size())
+        print()
+        print("第三个特征层预处理结束")
         #---------------------------------------------------#
         #   第一个特征层
         #   out3 = (batch_size,255,52,52)
         #---------------------------------------------------#
         # 52,52,384 -> 52,52,128 -> 52,52,256 -> 52,52,128 -> 52,52,256 -> 52,52,128
+        print("第三个特征层")
+        print("layer1")
+        startl0 = time.time()
+
         out2 = self.last_layer2(x2_in)
+
+        overl0  =time.time()
+        print("delay1",round(overl0-startl0,5))
+        print("data1",torch.numel(out2) * out2.element_size())
+        print()
+        print("第三个特征层结束")
+
         return out0, out1, out2
